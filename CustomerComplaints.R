@@ -2,8 +2,6 @@ library(tidyverse)
 library(lubridate)
 library(RODBC)
 
-
-
 DWH<-odbcDriverConnect(readLines("connection_R.sql"))
 # Ingreso registros de quejas
 ruta <- format(floor_date(today()-months(1)), format = "%Y%m")
@@ -11,7 +9,7 @@ Inconformidades<-readxl::read_xlsx(paste(ruta,dir(ruta), sep = "/"))
 Inconformidades$REPORTE<-as.numeric(substring(Inconformidades$REPORTE,1,7))
 
 
-Ajustadores<-as.data.frame( sqlQuery(DWH,
+Ajustadores <- as.data.frame( sqlQuery(DWH,
 "SELECT  
   IdAjustador
 , ajustador.Ajustador
@@ -35,67 +33,68 @@ INNER JOIN Tb_BI_GrlSinReporte AS reporte ON reporte.NumReporte=ajustador.NoRepo
 INNER JOIN  VW_BI_CatOficina ofi on ofi.IdOficina= reporte.IdOficinaOcurrencia
 where TiempoInicioAtencionReporte >=getdate() - 700"))
 
-NPS<-as.data.frame(sqlQuery(DWH,
+NPS <- as.data.frame(sqlQuery(DWH,
 "SELECT *  FROM
 Tb_bi_GrlNPS_SurveyMonkey"))
 
 NPS$FechaCreacion = gsub("[a.pm]", "",NPS$FechaCreacion)
-NPS$FechaMedici髇<-substr(NPS$FechaMedici髇,1,10)
+NPS$FechaMedici贸n<-substr(NPS$FechaMedici贸n,1,10)
 
-FechaObservacion="2021-04-01"
+FechaObservacion = floor_date(today(), unit = "month")-months(1)
 
-NPS<-NPS%>%
-  filter(year(dmy(FechaMedici髇))==year(dmy(FechaObservacion)) & month(dmy(FechaMedici髇))==month(dmy(FechaObservacion))  )
-NPSMES=100*(length(NPS$NPS[NPS$NPS>8])-length(NPS$NPS[NPS$NPS<7]))/length(NPS$NPS)
-colnames(NPS)[11]<-"COMENTARIOS"
-colnames(NPS)[5]<-"SUBTIPO"
-NPS$Queja_Ajuste<-ifelse(NPS$AtencionAjustador<7 |NPS$TiempoLlegadaAjustador<7,1,0)
+NPS <- NPS %>%
+  filter(year(dmy(FechaMedici贸n))==year(dmy(FechaObservacion)) & month(dmy(FechaMedici贸n))==month(dmy(FechaObservacion))  )
 
-InconformidadesMes<-Inconformidades[,c("REPORTE", "Canal","Mes", "DEPARTAMENTO","SUBTIPO","COMENTARIOS")]
-colnames(InconformidadesMes)[1]<-"NumReporte"
-colnames(InconformidadesMes)[3]<-"FechaMedici髇"
-InconformidadesMes$FechaMedici髇<-as.character(InconformidadesMes$FechaMedici髇)
+NPSMES = 100*(length(NPS$NPS[NPS$NPS>8])-length(NPS$NPS[NPS$NPS<7]))/length(NPS$NPS)
+colnames(NPS)[11] <- "COMENTARIOS"
+colnames(NPS)[5] <- "SUBTIPO"
+NPS$Queja_Ajuste <- ifelse(NPS$AtencionAjustador<7 |NPS$TiempoLlegadaAjustador<7,1,0)
+
+InconformidadesMes <- Inconformidades[,c("REPORTE", "Canal","Mes", "DEPARTAMENTO","SUBTIPO","COMENTARIOS")]
+colnames(InconformidadesMes)[1] <- "NumReporte"
+colnames(InconformidadesMes)[3] <- "FechaMedici贸n"
+InconformidadesMes$FechaMedici贸n <- as.character(InconformidadesMes$FechaMedici贸n)
 
 #InconformidadesMes$NumReporte<-as.numeric(InconformidadesMes$NumReporte)
-NPSMes<-NPS[,c("NumReporte", "Canal","FechaMedici髇","SUBTIPO","COMENTARIOS","Queja_Ajuste")]
+NPSMes <- NPS[,c("NumReporte", "Canal","FechaMedici贸n","SUBTIPO","COMENTARIOS","Queja_Ajuste")]
 
 
 
-Mes<-InconformidadesMes%>%
+Mes <- InconformidadesMes %>%
   full_join(NPSMes)
 Mes$Queja_Ajuste<-ifelse(str_detect(Mes$DEPARTAMENTO,"Ajuste") | str_detect(Mes$SUBTIPO,"Ajustador"),1,Mes$Queja_Ajuste)
 
-Quejas<-Mes
+Quejas <- Mes
 
 
-FechaInicio="2021-04-01"
-FechaFin="2021-05-01"
-Ajustadores$IdAjustador<-as.character(Ajustadores$IdAjustador)
+FechaInicio = floor_date(today(), unit = "month")-months(1)
+FechaFin = floor_date(today(), unit = "month")
+Ajustadores$IdAjustador <- as.character(Ajustadores$IdAjustador)
 
 
-Ajustadores<-Ajustadores%>%
-  group_by(IdAjustador, IdOficinaOcurrencia)%>%
-  mutate(SiniestrosAjustador=length(IdAjustador[as.Date(TiempoCreacionReporte)>=as.Date(FechaInicio)&as.Date(FechaFin) >as.Date(TiempoCreacionReporte) ]))%>%
-  group_by(Despacho,IdOficinaOcurrencia)%>%
-  mutate(SiniestrosDespacho=length(Despacho[as.Date(TiempoCreacionReporte)>=as.Date(FechaInicio)&as.Date(FechaFin) >as.Date(TiempoCreacionReporte) ]))%>%
-  group_by(IdOficinaOcurrencia)%>%
+Ajustadores<-Ajustadores %>%
+  group_by(IdAjustador, IdOficinaOcurrencia) %>%
+  mutate(SiniestrosAjustador = length(IdAjustador[as.Date(TiempoCreacionReporte) >= as.Date(FechaInicio) & as.Date(FechaFin) > as.Date(TiempoCreacionReporte) ])) %>%
+  group_by(Despacho,IdOficinaOcurrencia) %>%
+  mutate(SiniestrosDespacho = length(Despacho[as.Date(TiempoCreacionReporte) >= as.Date(FechaInicio) & as.Date(FechaFin) > as.Date(TiempoCreacionReporte) ])) %>%
+  group_by(IdOficinaOcurrencia) %>%
   mutate(ReportesOficina=length(IdOficinaOcurrencia[as.Date(TiempoCreacionReporte)>=as.Date(FechaInicio)&as.Date(FechaFin) >as.Date(TiempoCreacionReporte) ]))
 
 QuejasAjustador<-Quejas%>%
-  inner_join(Ajustadores, by=c("NumReporte"="NumReporte"))%>%
+  inner_join(Ajustadores, by=c("NumReporte"="NumReporte")) %>%
   filter(Queja_Ajuste==1)
 
-QuejasAjustador<-QuejasAjustador%>%
-  group_by(IdAjustador,NombreOficina)%>%
-  mutate(QuejasAjustador=n())%>%
-  group_by(Despacho)%>%
-  mutate(QuejasDespacho=n())
+QuejasAjustador <- QuejasAjustador %>%
+  group_by(IdAjustador,NombreOficina) %>%
+  mutate(QuejasAjustador = n()) %>%
+  group_by(Despacho) %>%
+  mutate(QuejasDespacho = n())
 
-QuejasAjustador$QuejasPonderadaAjustador<-100*QuejasAjustador$QuejasAjustador/QuejasAjustador$SiniestrosAjustador
-QuejasAjustador$QuejasPonderadaDespacho<-100*QuejasAjustador$QuejasDespacho/QuejasAjustador$SiniestrosDespacho
+QuejasAjustador$QuejasPonderadaAjustador <- 100*QuejasAjustador$QuejasAjustador/QuejasAjustador$SiniestrosAjustador
+QuejasAjustador$QuejasPonderadaDespacho <- 100*QuejasAjustador$QuejasDespacho/QuejasAjustador$SiniestrosDespacho
 
 
-Pagos<-as.data.frame(sqlQuery(DWH,
+Pagos <- as.data.frame(sqlQuery(DWH,
 "SELECT 
  oficina.NombreOficina
 ,Reporte.NumReporte
@@ -114,7 +113,7 @@ INNER JOIN
 inner join Tb_BI_GrlSinReporte reporte on reclamo.NumReclamo=reporte.NumReclamo
         
  WHERE 
- (val.TipoProceso = 'PAGO DE DA袿S' OR val.TipoProceso = 'PERDIDA TOTAL' ) AND
+ (val.TipoProceso = 'PAGO DE DA脩OS' OR val.TipoProceso = 'PERDIDA TOTAL' ) AND
  
  val.FechaReporte >=getdate() - 700     
 
@@ -122,7 +121,7 @@ inner join Tb_BI_GrlSinReporte reporte on reclamo.NumReclamo=reporte.NumReclamo
 ))
 
 
-Valuacion<-as.data.frame( sqlQuery(DWH,"
+Valuacion <- as.data.frame( sqlQuery(DWH,"
  SELECT 
  Reporte.NumReporte
 ,val.MarcaVehiculo
@@ -144,7 +143,7 @@ inner join Tb_BI_GrlSinReporte reporte on reclamo.NumReclamo=reporte.NumReclamo
   where FechaReporte >=getdate() - 700"))
 
 
-ValuacionResumido<-as.data.frame( sqlQuery(DWH,"
+ValuacionResumido <- as.data.frame(sqlQuery(DWH,paste("
 
  SELECT 
 
@@ -162,75 +161,73 @@ inner join VW_BI_CatOficina ofi on ofi.IdOficina= val.IdOficinaAtencion
 inner join Tb_BI_GrlSinReclamo reclamo on reclamo.NumReclamo = val.NumSiniestro
 
 inner join Tb_BI_GrlSinReporte reporte on reclamo.NumReclamo=reporte.NumReclamo
-  where FechaReporte >= '20210401' 
-  AND
-  FechaReporte < '20210501'
-GROUP BY
+  where FechaReporte >="," '", format(floor_date(today(), unit = "month")-months(1), format = "%Y%m%d"),"'  \n ","AND
+  FechaReporte <", " '", format(floor_date(today(), unit = "month"), format = "%Y%m%d"),"'\n","GROUP BY
 val.NipTaller
 ,val.Taller
 ,val.IdOficinaAtencion
 ,ofi.NombreOficina
 ,ofi.zona
-,ofi.NombreEstado"))
+,ofi.NombreEstado", sep = "")))
 
 
 
-QuejasTaller<-Quejas%>%
-  inner_join(Valuacion, by=c("NumReporte"="NumReporte"))%>%
-  filter(DEPARTAMENTO=="Reparaci髇")
+QuejasTaller <- Quejas %>%
+  inner_join(Valuacion, by=c("NumReporte"="NumReporte")) %>%
+  filter(DEPARTAMENTO =="Reparaci贸n")
 
 
-Valuacion$MesInteres<-ifelse(as.Date(Valuacion$FechaReporte)>=as.Date(FechaInicio) & as.Date(FechaFin)>as.Date(Valuacion$FechaReporte),1,0)
+Valuacion$MesInteres <- ifelse(as.Date(Valuacion$FechaReporte) >= as.Date(FechaInicio) & as.Date(FechaFin) > as.Date(Valuacion$FechaReporte),1,0)
 
-Valuacion<-Valuacion%>%
-  group_by(Taller,NombreOficina)%>%
-  mutate(Reparaciones=sum(MesInteres))%>%
-  group_by(NombreOficina)%>%
+Valuacion <- Valuacion %>%
+  group_by(Taller,NombreOficina) %>%
+  mutate(Reparaciones=sum(MesInteres)) %>%
+  group_by(NombreOficina) %>%
   mutate( AtencionesOficina=sum(MesInteres))
 
-QuejasTaller<-Quejas%>%
-  inner_join(Valuacion, by=c("NumReporte"="NumReporte"))%>%
-  filter(DEPARTAMENTO=="Reparaci髇" )%>%
-  group_by(Taller,NombreOficina,AtencionesOficina)%>%
-  mutate(QuejasTaller=n())%>%
-  group_by(NombreOficina)%>%
-  mutate(QuejasOficina=n())
+QuejasTaller <- Quejas %>%
+  inner_join(Valuacion, by = c("NumReporte"="NumReporte")) %>%
+  filter(DEPARTAMENTO =="Reparaci贸n" ) %>%
+  group_by(Taller,NombreOficina,AtencionesOficina) %>%
+  mutate(QuejasTaller=n()) %>%
+  group_by(NombreOficina) %>%
+  mutate(QuejasOficina = n())
 
-QuejasTaller$QuejasTallerPonderada<-100*QuejasTaller$QuejasTaller/QuejasTaller$Reparaciones
-QuejasTaller$QuejasOficinaPonderada<-100*QuejasTaller$QuejasOficina/QuejasTaller$AtencionesOficina
+QuejasTaller$QuejasTallerPonderada <- 100*QuejasTaller$QuejasTaller/QuejasTaller$Reparaciones
+QuejasTaller$QuejasOficinaPonderada <- 100*QuejasTaller$QuejasOficina/QuejasTaller$AtencionesOficina
 
 
-PagosQuejas<-Quejas%>%
-  filter(DEPARTAMENTO =="Pagos" | str_detect(SUBTIPO,"pago"))%>%
-  inner_join(Pagos)%>%
-  group_by(NombreOficina)%>%
-  summarise(Quejas=n())
+PagosQuejas <- Quejas %>%
+  filter(DEPARTAMENTO =="Pagos" | str_detect(SUBTIPO,"pago")) %>%
+  inner_join(Pagos) %>%
+  group_by(NombreOficina) %>%
+  summarise(Quejas = n())
 
-PagosResumido<-Pagos%>%
-  group_by(NombreOficina)%>%
+PagosResumido <- Pagos %>%
+  group_by(NombreOficina) %>%
   summarise(Pagos=length(NombreOficina[as.Date(FechaAutorizacionValuacion)>=as.Date(FechaInicio)&as.Date(FechaFin) >as.Date(FechaAutorizacionValuacion) ]))
 
-PagosQuejas<-PagosQuejas%>%
+PagosQuejas <- PagosQuejas %>%
   inner_join(PagosResumido)
 
-PagosQuejas$QuejaPonderada<-100*PagosQuejas$Quejas/PagosQuejas$Pagos
+PagosQuejas$QuejaPonderada <- 100*PagosQuejas$Quejas/PagosQuejas$Pagos
 
-TalleresQuejas<-distinct(QuejasTaller[,c("NombreOficina","Taller","QuejasTaller","Reparaciones","QuejasTallerPonderada")])%>%
-  filter(Reparaciones>0)%>%
+TalleresQuejas <- distinct(QuejasTaller[,c("NombreOficina","Taller","QuejasTaller","Reparaciones","QuejasTallerPonderada")])%>%
+  filter(Reparaciones > 0) %>%
   distinct()
 
-Q1=quantile(TalleresQuejas$Reparaciones,.25)
-Q2=quantile(TalleresQuejas$Reparaciones,.5)
-Q3=quantile(TalleresQuejas$Reparaciones,.75)
-DIQ=Q3-Q1
-OE=as.numeric(Q2+3*DIQ)
+Q1 = quantile(TalleresQuejas$Reparaciones, 0.25)
+Q2 = quantile(TalleresQuejas$Reparaciones, 0.5)
+Q3 = quantile(TalleresQuejas$Reparaciones, 0.75)
+DIQ = Q3-Q1
+OE = as.numeric(Q2+3*DIQ)
 
-TalleresQuejas$Grupo=ifelse(TalleresQuejas$Reparaciones>=OE,1,2)
+TalleresQuejas$Grupo = ifelse(TalleresQuejas$Reparaciones >= OE, 1, 2)
 
 
 
-AjustadoresQuejas<-distinct(QuejasAjustador[,c("NombreOficina","Ajustador","QuejasAjustador","SiniestrosAjustador","QuejasPonderadaAjustador")])%>%
-  filter(SiniestrosAjustador>0)%>%
+AjustadoresQuejas <- distinct(QuejasAjustador[,c("NombreOficina","Ajustador","QuejasAjustador","SiniestrosAjustador","QuejasPonderadaAjustador")])%>%
+  filter(SiniestrosAjustador > 0) %>%
   distinct()
 
 # Q1=quantile(AjustadoresQuejas$SiniestrosAjustador,.25)
@@ -241,36 +238,36 @@ AjustadoresQuejas<-distinct(QuejasAjustador[,c("NombreOficina","Ajustador","Quej
 # 
 # TalleresQuejas$Grupo=ifelse(AjustadoresQuejas$SiniestrosAjustador>=OE,1,2)
 
-DespachoQuejas<-distinct(QuejasAjustador[,c("NombreOficina","Despacho","QuejasDespacho","SiniestrosDespacho","QuejasPonderadaDespacho")])%>%
-  filter(SiniestrosDespacho>0)%>%
+DespachoQuejas <- distinct(QuejasAjustador[,c("NombreOficina","Despacho","QuejasDespacho","SiniestrosDespacho","QuejasPonderadaDespacho")])%>%
+  filter(SiniestrosDespacho > 0) %>%
   distinct()
 
-OficinaQuejasPago<-PagosQuejas%>%
-  filter(Pagos>0)%>%
+OficinaQuejasPago <- PagosQuejas %>%
+  filter(Pagos>0) %>%
   distinct()
 
-OficinaQuejas<-distinct(QuejasTaller[,c("NombreOficina","AtencionesOficina","QuejasOficina","QuejasOficinaPonderada")])%>%
-  filter(AtencionesOficina>0)%>%
+OficinaQuejas <- distinct(QuejasTaller[,c("NombreOficina","AtencionesOficina","QuejasOficina","QuejasOficinaPonderada")])%>%
+  filter(AtencionesOficina > 0) %>%
   distinct()
 
-Q1=quantile(OficinaQuejas$AtencionesOficina,.25)
-Q2=quantile(OficinaQuejas$AtencionesOficina,.5)
-Q3=quantile(OficinaQuejas$AtencionesOficina,.75)
-DIQ=Q3-Q1
-OE=as.numeric(Q2+3*DIQ)
+Q1 = quantile(OficinaQuejas$AtencionesOficina, 0.25)
+Q2 = quantile(OficinaQuejas$AtencionesOficina, 0.5)
+Q3 = quantile(OficinaQuejas$AtencionesOficina, 0.75)
+DIQ = Q3-Q1
+OE = as.numeric(Q2+3*DIQ)
 
-OficinaQuejas$Grupo=ifelse(OficinaQuejas$AtencionesOficina>=OE,1,2)
+OficinaQuejas$Grupo = ifelse(OficinaQuejas$AtencionesOficina >= OE, 1, 2)
 
-OficinaQuejas<-OficinaQuejas%>%
-  group_by(Grupo)%>%
-  mutate(ParticipacionGrupo=100*AtencionesOficina/sum(AtencionesOficina))%>%
-  filter(Grupo==1 | ParticipacionGrupo>=2)
+OficinaQuejas <- OficinaQuejas %>%
+  group_by(Grupo) %>%
+  mutate(ParticipacionGrupo=100*AtencionesOficina/sum(AtencionesOficina)) %>%
+  filter(Grupo == 1 | ParticipacionGrupo >= 2)
 
 median(TalleresQuejas$QuejasTallerPonderada)
 
-PagosQuejascomentarios<-Quejas%>%
-  filter(DEPARTAMENTO =="Pagos"| str_detect(SUBTIPO,"pago"))%>%
-  left_join(Pagos)%>%
+PagosQuejascomentarios <- Quejas %>%
+  filter(DEPARTAMENTO =="Pagos"| str_detect(SUBTIPO,"pago")) %>%
+  left_join(Pagos) %>%
   distinct()
 
 write.csv(TalleresQuejas,paste(ruta,"TalleresQuejas.csv", sep = "/"),col.names = FALSE)
